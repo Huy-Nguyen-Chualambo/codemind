@@ -203,6 +203,3 @@ If model returns plain text, app will show fallback rendering.
 3. File upload and multi-file analysis.
 4. Team-level review history and shared reports.
 
-## License
-
-MIT (you can change this to your preferred license).
