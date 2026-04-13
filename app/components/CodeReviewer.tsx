@@ -5,11 +5,13 @@ import ReactMarkdown from "react-markdown";
 import { useEffect, useMemo, useState } from "react";
 
 type Mode = "review" | "explain" | "fix";
+type Provider = "openrouter" | "groq";
 
 type ReviewHistoryItem = {
   code: string;
   language: string;
   mode: Mode;
+  provider: Provider;
   result: string;
   timestamp: string;
 };
@@ -23,6 +25,11 @@ const modeLabel: Record<Mode, string> = {
   review: "Review Code",
   explain: "Explain Code",
   fix: "Fix Bug",
+};
+
+const providerLabel: Record<Provider, string> = {
+  openrouter: "OpenRouter",
+  groq: "Groq",
 };
 
 type ParsedReviewResult = {
@@ -67,6 +74,7 @@ const parseReviewResult = (rawResult: string): ParsedReviewResult | null => {
 export default function CodeReviewer() {
   const [code, setCode] = useState("");
   const [language, setLanguage] = useState("Python");
+  const [provider, setProvider] = useState<Provider>("openrouter");
   const [activeMode, setActiveMode] = useState<Mode | null>(null);
   const [result, setResult] = useState("");
   const [error, setError] = useState("");
@@ -81,9 +89,29 @@ export default function CodeReviewer() {
         return;
       }
 
-      const parsed = JSON.parse(raw) as ReviewHistoryItem[];
+      const parsed = JSON.parse(raw) as Array<
+        Omit<ReviewHistoryItem, "provider"> & { provider?: Provider }
+      >;
+
       if (Array.isArray(parsed)) {
-        setHistory(parsed.slice(0, MAX_HISTORY_ITEMS));
+        const normalized: ReviewHistoryItem[] = parsed
+          .filter(
+            (item) =>
+              typeof item.code === "string" &&
+              typeof item.language === "string" &&
+              (item.mode === "review" || item.mode === "explain" || item.mode === "fix") &&
+              typeof item.result === "string" &&
+              typeof item.timestamp === "string",
+          )
+          .map((item) => ({
+            code: item.code,
+            language: item.language,
+            mode: item.mode,
+            result: item.result,
+            timestamp: item.timestamp,
+            provider: item.provider === "groq" ? "groq" : "openrouter",
+          }));
+        setHistory(normalized.slice(0, MAX_HISTORY_ITEMS));
       }
     } catch {
       setHistory([]);
@@ -125,6 +153,7 @@ export default function CodeReviewer() {
           code,
           language,
           mode,
+          provider,
         }),
       });
 
@@ -144,6 +173,7 @@ export default function CodeReviewer() {
         code,
         language,
         mode,
+        provider,
         result: aiResult,
         timestamp: new Date().toISOString(),
       };
@@ -166,6 +196,7 @@ export default function CodeReviewer() {
   const restoreHistoryItem = (item: ReviewHistoryItem) => {
     setCode(item.code);
     setLanguage(item.language);
+    setProvider(item.provider);
     setActiveMode(item.mode);
     setResult(item.result);
     setError("");
@@ -216,6 +247,9 @@ export default function CodeReviewer() {
               <p className="text-[10px] font-semibold uppercase tracking-[1px] text-[#3b89ff]">
                 {modeLabel[item.mode]} • {item.language}
               </p>
+              <p className="mt-1 text-[10px] uppercase tracking-[1px] text-gray-500">
+                {providerLabel[item.provider]}
+              </p>
               <p className="mt-1 line-clamp-2 text-sm text-gray-300">{item.code}</p>
               <p className="mt-2 text-[10px] text-gray-500">{new Date(item.timestamp).toLocaleString()}</p>
             </button>
@@ -239,6 +273,19 @@ export default function CodeReviewer() {
                 {item}
               </option>
             ))}
+          </select>
+
+          <label className="mb-2 block text-[12px] font-semibold uppercase tracking-[1.2px] text-gray-300" htmlFor="provider">
+            AI Provider
+          </label>
+          <select
+            id="provider"
+            value={provider}
+            onChange={(event) => setProvider(event.target.value as Provider)}
+            className="mb-4 w-full rounded-[4px] border border-[#d8d8d8]/30 bg-gray-800 px-3 py-2 text-sm text-gray-100 outline-none focus:border-[#146ef5]"
+          >
+            <option value="openrouter">nvidia/nemotron-3-super-120b-a12b</option>
+            <option value="groq">openai/gpt-oss-120b</option>
           </select>
 
           <label className="mb-2 block text-[12px] font-semibold uppercase tracking-[1.2px] text-gray-300" htmlFor="code">
